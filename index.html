@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hill Climb by Rohan</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: skyblue;
+    }
+    canvas {
+      display: block;
+    }
+    #startScreen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: black;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+    #startScreen img {
+      width: 60%;
+      max-width: 400px;
+      margin-bottom: 20px;
+    }
+    #startButton {
+      padding: 15px 30px;
+      font-size: 20px;
+      background: red;
+      color: white;
+      border: none;
+      border-radius: 10px;
+    }
+    #controls {
+      position: absolute;
+      bottom: 20px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+    }
+    .control-btn {
+      padding: 10px 20px;
+      font-size: 18px;
+      background: #333;
+      color: white;
+      border-radius: 5px;
+    }
+    #musicToggle {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="startScreen">
+  <img src="photo_2025-04-06_15-35-17.jpg" alt="loading screen">
+  <button id="startButton">Start Game</button>
+</div>
+
+<audio id="bgMusic" src="music.mp3" loop></audio>
+<canvas id="gameCanvas" width="1000" height="600"></canvas>
+
+<button id="musicToggle">Music: On</button>
+
+<div id="controls">
+  <button class="control-btn" id="left">Left</button>
+  <button class="control-btn" id="right">Right</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const startScreen = document.getElementById('startScreen');
+const startButton = document.getElementById('startButton');
+const leftBtn = document.getElementById('left');
+const rightBtn = document.getElementById('right');
+const bgMusic = document.getElementById("bgMusic");
+const musicBtn = document.getElementById("musicToggle");
+
+let car = {
+  x: 100,
+  y: 0,
+  width: 60,
+  height: 30,
+  vx: 0,
+  vy: 0,
+  angle: 0,
+  rotationSpeed: 0,
+};
+let gravity = 0.5;
+let ground = [];
+let coins = [];
+let fuelCans = [];
+let offset = 0;
+let keys = {};
+let speed = 3;
+let coinCollected = 0;
+let fuel = 100;
+let gameOver = false;
+let lastX = 0;
+let musicOn = true;
+
+function generateGroundChunk() {
+  for (let i = 0; i < 100; i++) {
+    let x = lastX + 20;
+    let y = 400 + Math.sin(x * 0.01) * 40 + Math.random() * 20;
+    ground.push({ x, y });
+    if (Math.random() < 0.1) {
+      coins.push({ x: x + 30, y: y - 40 });
+    }
+    if (Math.random() < 0.05) {
+      fuelCans.push({ x: x + 40, y: y - 30 });
+    }
+    lastX = x;
+  }
+}
+
+function drawGround() {
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height);
+  for (let i = 0; i < ground.length; i++) {
+    ctx.lineTo(ground[i].x - offset, ground[i].y);
+  }
+  ctx.lineTo(canvas.width, canvas.height);
+  ctx.fillStyle = "green";
+  ctx.fill();
+}
+
+function drawCoins() {
+  ctx.fillStyle = "gold";
+  for (let c of coins) {
+    ctx.beginPath();
+    ctx.arc(c.x - offset, c.y, 10, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawFuelCans() {
+  ctx.fillStyle = "blue";
+  for (let f of fuelCans) {
+    ctx.fillRect(f.x - offset, f.y, 20, 20);
+    ctx.fillStyle = "white";
+    ctx.fillText("F", f.x - offset + 4, f.y + 15);
+    ctx.fillStyle = "blue";
+  }
+}
+
+function getGroundY(x) {
+  for (let i = 0; i < ground.length - 1; i++) {
+    let g1 = ground[i];
+    let g2 = ground[i + 1];
+    if (x >= g1.x && x <= g2.x) {
+      let t = (x - g1.x) / (g2.x - g1.x);
+      return g1.y * (1 - t) + g2.y * t;
+    }
+  }
+  return canvas.height;
+}
+
+function checkGroundUnderCar() {
+  let frontX = car.x + car.width / 2 + offset;
+  let rearX = car.x - car.width / 2 + offset;
+
+  let frontY = getGroundY(frontX);
+  let rearY = getGroundY(rearX);
+
+  let targetY = (frontY + rearY) / 2 - car.height / 2;
+
+  if (car.y < targetY) {
+    car.vy += gravity;
+  } else {
+    car.vy = 0;
+    car.y = targetY;
+  }
+
+  car.y += car.vy;
+
+  let dy = frontY - rearY;
+  let dx = car.width;
+  let targetAngle = Math.atan2(dy, dx);
+
+  car.rotationSpeed += (targetAngle - car.angle) * 0.1;
+  car.rotationSpeed *= 0.9;
+  car.angle += car.rotationSpeed;
+
+  if (Math.abs(car.angle) > Math.PI / 2) {
+    gameOver = true;
+  }
+}
+
+function drawCar() {
+  ctx.save();
+  ctx.translate(car.x + car.width / 2, car.y + car.height / 2);
+  ctx.rotate(car.angle);
+  ctx.fillStyle = "red";
+  ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
+
+  // Tyres
+  ctx.fillStyle = "black";
+  let wheelY = car.height / 2;
+  ctx.beginPath();
+  ctx.arc(-car.width / 3, wheelY, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(car.width / 3, wheelY, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSkyText() {
+  ctx.font = "30px Arial";
+  ctx.fillStyle = "white";
+  ctx.fillText("ROHAN", 20, 50);
+  ctx.fillText("Coins: " + coinCollected, 800, 50);
+  ctx.fillText("Fuel", 20, 80);
+  ctx.fillStyle = "red";
+  ctx.fillRect(80, 65, fuel * 2, 15);
+  ctx.strokeStyle = "black";
+  ctx.strokeRect(80, 65, 200, 15);
+}
+
+function drawGameOver() {
+  ctx.fillStyle = "rgba(0,0,0,0.7)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "white";
+  ctx.font = "48px Arial";
+  ctx.fillText("Game Over", canvas.width / 2 - 120, canvas.height / 2);
+}
+
+function update() {
+  if (keys.left) car.vx = -speed;
+  else if (keys.right) car.vx = speed;
+  else car.vx = 0;
+
+  offset += car.vx;
+
+  if (ground[ground.length - 1].x - offset < canvas.width + 200) {
+    generateGroundChunk();
+  }
+
+  checkGroundUnderCar();
+
+  if (car.y > canvas.height) {
+    gameOver = true;
+  }
+
+  coins = coins.filter(c => {
+    if (Math.abs((c.x - offset) - car.x) < 20 && Math.abs(c.y - car.y) < 30) {
+      coinCollected++;
+      return false;
+    }
+    return true;
+  });
+
+  fuelCans = fuelCans.filter(f => {
+    if (Math.abs((f.x - offset) - car.x) < 20 && Math.abs(f.y - car.y) < 30) {
+      fuel = Math.min(fuel + 30, 100);
+      return false;
+    }
+    return true;
+  });
+
+  fuel -= 0.1;
+  if (fuel <= 0) {
+    gameOver = true;
+  }
+}
+
+function gameLoop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawSkyText();
+  drawGround();
+  drawCoins();
+  drawFuelCans();
+  drawCar();
+
+  if (gameOver) {
+    drawGameOver();
+    return;
+  }
+
+  update();
+  requestAnimationFrame(gameLoop);
+}
+
+startButton.onclick = () => {
+  startScreen.style.display = 'none';
+  bgMusic.play();
+  generateGroundChunk();
+  gameLoop();
+};
+
+leftBtn.onmousedown = () => keys.left = true;
+leftBtn.onmouseup = () => keys.left = false;
+rightBtn.onmousedown = () => keys.right = true;
+rightBtn.onmouseup = () => keys.right = false;
+
+musicBtn.onclick = () => {
+  if (musicOn) {
+    bgMusic.pause();
+    musicBtn.innerText = "Music: Off";
+  } else {
+    bgMusic.play();
+    musicBtn.innerText = "Music: On";
+  }
+  musicOn = !musicOn;
+};
+</script>
+
+</body>
+</html>
