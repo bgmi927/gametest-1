@@ -42,6 +42,7 @@
       display: flex;
       justify-content: center;
       gap: 20px;
+      z-index: 5;
     }
     .control-btn {
       padding: 10px 20px;
@@ -55,6 +56,7 @@
       top: 20px;
       right: 20px;
       padding: 10px 20px;
+      z-index: 5;
     }
   </style>
 </head>
@@ -298,11 +300,26 @@ startButton.onclick = () => {
   gameLoop();
 };
 
-leftBtn.onmousedown = () => keys.left = true;
-leftBtn.onmouseup = () => keys.left = false;
-rightBtn.onmousedown = () => keys.right = true;
-rightBtn.onmouseup = () => keys.right = false;
+// Mobile & PC Controls:
+leftBtn.onmousedown = leftBtn.ontouchstart = (e) => {
+  e.preventDefault();
+  keys.left = true;
+};
+leftBtn.onmouseup = leftBtn.ontouchend = (e) => {
+  e.preventDefault();
+  keys.left = false;
+};
 
+rightBtn.onmousedown = rightBtn.ontouchstart = (e) => {
+  e.preventDefault();
+  keys.right = true;
+};
+rightBtn.onmouseup = rightBtn.ontouchend = (e) => {
+  e.preventDefault();
+  keys.right = false;
+};
+
+// Music toggle
 musicBtn.onclick = () => {
   if (musicOn) {
     bgMusic.pause();
